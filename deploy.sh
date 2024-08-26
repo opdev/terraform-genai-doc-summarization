@@ -14,11 +14,12 @@
 # limitations under the License.
 set -e
 
-export PROJECT_ID="velociraptor-16p1-test-15"
+export PROJECT_ID="lifecycle-engineering"
 export TF_PLAN_STORAGE_BUCKET="${PROJECT_ID?}-tf"
 export BUCKET_NAME=${TF_PLAN_STORAGE_BUCKET?}-main
 export TERRAFORM_IMAGE="hashicorp/terraform:1.4.6"
 export PREFIX="terraform/${PROJECT_ID?}"
+#export EMAIL="${2}"
 
 DESTROY=
 while (( ${#} > 0 )); do
@@ -32,12 +33,12 @@ while (( ${#} > 0 )); do
 done
 
 gcloud config set project "${PROJECT_ID?}"
-gcloud --quiet auth login "$(whoami)@google.com" --no-launch-browser
+gcloud --quiet auth login "${EMAIL?}" --no-launch-browser
 gcloud services enable cloudresourcemanager.googleapis.com
 
-sudo docker run \
+sudo podman run \
   -w /app \
-  -v "$(pwd)":/app \
+  -v "$(pwd)":/app:Z \
   "${TERRAFORM_IMAGE?}" \
   init \
   -upgrade \
@@ -46,13 +47,12 @@ sudo docker run \
   -backend-config="bucket=${TF_PLAN_STORAGE_BUCKET?}" \
   -backend-config="prefix=${PREFIX?}"
 
-sudo docker run \
+sudo podman run \
   -w /app \
-  -v "$(pwd)":/app \
+  -v "$(pwd)":/app:Z \
   -e GOOGLE_OAUTH_ACCESS_TOKEN="$(gcloud auth print-access-token)" \
   "${TERRAFORM_IMAGE?}" \
   apply \
   --auto-approve \
   -var project_id="${PROJECT_ID?}" \
-  -var bucket_name="${BUCKET_NAME?}" \
   "${DESTROY?}"

@@ -17,6 +17,8 @@ import os
 from collections.abc import Iterator
 from datetime import datetime
 
+from openai import OpenAI
+
 import functions_framework
 from cloudevents.http import CloudEvent
 from google.api_core.client_options import ClientOptions
@@ -25,14 +27,18 @@ from google.cloud import bigquery
 from google.cloud import storage  # type: ignore
 from vertexai.preview.generative_models import GenerativeModel  # type: ignore
 
-SUMMARIZATION_PROMPT = """\
-Give me a summary of the following text.
-Use simple language and give examples.
-Explain to an undergraduate.
+# prompt updated/changed
+SUMMARIZATION_PROMPT = """Please summarize the following text. The summary should be concise yet detailed enough to \
+capture all the key points. Where possible, use paraphrasing, analogies, similes, metaphors, or other grammar tools \
+to convey the essence of the text in a simpler form while maintaining its core message. Ensure that the summary is \
+comprehensive but as brief as possible.
 
-TEXT:
+Text:
+
 {text}
-"""
+
+Summary:"""
+
 
 
 @functions_framework.cloud_event
@@ -97,7 +103,7 @@ def process_document(
         )
     )
 
-    model_name = "gemini-pro"
+    model_name = "llama3"
     print(f"📝 {event_id}: Summarizing document with {model_name}")
     print(f"  - Text length:    {len(doc_text)} characters")
     doc_summary = generate_summary(doc_text, model_name)
@@ -176,8 +182,9 @@ def get_document_text(
         document = documentai.Document.from_json(blob_contents, ignore_unknown_fields=True)
         yield document.text
 
-
-def generate_summary(text: str, model_name: str = "gemini-pro") -> str:
+# generate_summary was changed to work with OpenAI compatible endpoint (vLLM runtime)
+# llama3 is being used as the model and the openai_api_base is set statically
+def generate_summary(text: str, model_name: str = "llama3") -> str:
     """Generate a summary of the given text.
 
     Args:
@@ -187,9 +194,25 @@ def generate_summary(text: str, model_name: str = "gemini-pro") -> str:
     Returns:
         The generated summary.
     """
-    model = GenerativeModel(model_name)
     prompt = SUMMARIZATION_PROMPT.format(text=text)
-    return model.generate_content(prompt).text
+    openai_api_key = "YOUR_API_KEY"
+    openai_api_base = "https://llama3-genai-doc-summarization.apps.osai.openshiftpartnerlabs.com/v1"
+
+    client = OpenAI(
+        api_key=openai_api_key,
+        base_url=openai_api_base,
+    )
+
+    response = client.completions.create(
+        model=model_name,
+        prompt=prompt,
+        max_tokens=256,
+        n=1,
+        stop=None,
+        temperature=0.7,
+    )
+
+    return response.choices[0].text.strip()
 
 
 def write_to_bigquery(
