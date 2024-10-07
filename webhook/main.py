@@ -115,7 +115,7 @@ def process_document(
         )
     )
 
-    model_name = "llama3"
+    model_name = "llama"
     print(f"📝 {event_id}: Summarizing document with {model_name}")
     print(f"  - Text length:    {len(doc_text)} characters")
     doc_summary = generate_summary(doc_text, model_name)
@@ -204,7 +204,7 @@ def get_document_text(
 
 # generate_summary was changed to work with OpenAI compatible endpoint (vLLM runtime)
 # llama3 is being used as the model and the openai_api_base is set statically
-def generate_summary(text: str, model_name: str = "llama3") -> str:
+def generate_summary(text: str, model_name: str = "llama") -> str:
     """Generate a summary of the given text.
 
     Args:
@@ -216,7 +216,7 @@ def generate_summary(text: str, model_name: str = "llama3") -> str:
     """
     prompt = SUMMARIZATION_PROMPT.format(text=text)
     openai_api_key = "YOUR_API_KEY"
-    openai_api_base = "https://llama3-genai-doc-summarization.apps.osai.openshiftpartnerlabs.com/v1"
+    openai_api_base = "https://llama-genai-doc-summarization.apps.osai.openshiftpartnerlabs.com/v1"
 
     client = OpenAI(
         api_key=openai_api_key,
@@ -226,7 +226,7 @@ def generate_summary(text: str, model_name: str = "llama3") -> str:
     response = client.completions.create(
         model=model_name,
         prompt=prompt,
-        max_tokens=256,
+        max_tokens=8192,
         n=1,
         stop=None,
         temperature=0.7,
