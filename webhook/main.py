@@ -49,6 +49,18 @@ def on_cloud_event(event: CloudEvent) -> None:
         event: CloudEvent object.
     """
     try:
+        # Check if object metadata 'processed':'true' exists
+        # If it does, skip processing
+        processed = check_if_processed(
+            event_id=event.data["id"],
+            input_bucket=event.data["bucket"],
+            filename=event.data["name"],
+        )
+
+        if processed:
+            print(f"✅ {event.data["id"]}: Already processed!")
+            return
+
         process_document(
             event_id=event.data["id"],
             input_bucket=event.data["bucket"],
@@ -118,6 +130,14 @@ def process_document(
         doc_summary=doc_summary,
         bq_dataset=bq_dataset,
         bq_table=bq_table,
+    )
+
+    # Update the document metadata to indicate that it has been processed.
+    update_metadata(
+        event_id=event_id,
+        input_bucket=input_bucket,
+        filename=filename,
+        processed_bucket=output_bucket,
     )
 
     print(f"✅ {event_id}: Done!")
@@ -249,3 +269,39 @@ def write_to_bigquery(
             },
         ],
     )
+
+
+def update_metadata(event_id: str, input_bucket: str, filename: str, processed_bucket: str) -> None:
+    """Update the document metadata to indicate that it has been processed.
+
+    Args:
+        event_id: ID of the event.
+        input_bucket: Name of the input bucket.
+        filename: Name of the input file.
+        processed_bucket: Name of the processed bucket.
+    """
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(input_bucket)
+    blob = bucket.get_blob(filename)
+    metageneration_match_precondition = None
+
+    metadata = blob.metadata
+    metadata['processed'] = 'true'
+    blob.metadata = metadata
+    blob.patch(if_metageneration_match=metageneration_match_precondition)
+
+def check_if_processed(event_id: str, input_bucket: str, filename: str) -> bool:
+    """Check if the document has already been processed.
+
+    Args:
+        event_id: ID of the event.
+        input_bucket: Name of the input bucket.
+        filename: Name of the input file.
+    """
+    storage_client = storage.Client()
+    bucket = storage_client.get_bucket(input_bucket)
+    blob = bucket.get_blob(filename)
+    if 'processed' in blob.metadata:
+        return True
+
+    return False
